@@ -56,7 +56,8 @@ def receiveThread():
             msg = incMsg.decode('utf-8')
         except:
             msg =""
-    
+
+#-----------------------------------------------------------------------------------------------------------------------
         if checkCMD('#signup success', msg):
             infodump = receive(client_socket, raw=True)
             info = pickle.loads(infodump)
@@ -65,6 +66,7 @@ def receiveThread():
                 pickle.dump(user, userfile)
             send(str(user.publicKey), client_socket)
 
+#-----------------------------------------------------------------------------------------------------------------------
         elif checkCMD('#quit', msg):
             user.encryptKeys()
 
@@ -73,10 +75,11 @@ def receiveThread():
             print("Terminating connection")
             client_socket.close()
             os._exit(1)
-
+#-----------------------------------------------------------------------------------------------------------------------
         elif checkCMD('#broadcast',msg):
             print(msg[len("#broadcast"):])
 
+#-----------------------------------------------------------------------------------------------------------------------
         elif checkCMD("#new user", msg):
             send ("#new user", client_socket)
             print ("Adding user...")
@@ -100,7 +103,7 @@ def receiveThread():
                 except:
                     print("Waiting for server, please wait...")
                     time.sleep(0.5)
-        
+#-----------------------------------------------------------------------------------------------------------------------       
         else:
             if authenticated:
                 originUser = incMsg[:USERNAME_LENGTH].decode('utf-8').strip()
@@ -182,8 +185,9 @@ def on_closing(event=None):
     send("#quit",client_socket)
     client_socket.close()
 
-HOST = '127.0.0.1'
-PORT = 33001
+#HOST = '127.0.0.1'
+HOST = 'localhost'
+PORT = 65535
 if not os.path.exists('data'):
     os.makedirs('data')
 
