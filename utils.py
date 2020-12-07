@@ -1,26 +1,23 @@
 #requires pycryptodome
 from Crypto.Cipher import AES
-from Crypto.Hash import SHA256
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Util import number
 from Crypto.Random.random import randint
 from Crypto.Random import get_random_bytes
 
 
-CIPHER_KEYSIZE = 16 #AES-128
+KEY_SIZE = 16 #AES-128
 
-def KeyDerivationFunction(sharedKey,count=1000):
-    derivedKey=PBKDF2(str(sharedKey),b"",dkLen=CIPHER_KEYSIZE,count=count)
-    return derivedKey
+def KeyDerivationFunction(sharedKey,count=100000):
+    salt = b""
+    KDF_Key= PBKDF2(str(sharedKey),salt,dkLen=KEY_SIZE,count=count)
+    return KDF_Key
 
 class Server(object):
     def __init__(self,size = 1024):
         print("Choosing a large prime number...")
-        self.prime = (number.getPrime(size))
-        self.base = 2
-
-
-
+        self.p = (number.getPrime(size))
+        self.g = 5
 
 class User(object):
     def __init__(self, id, prime, base, isonline=True):
@@ -29,7 +26,7 @@ class User(object):
         self.g = base
         self.privateKey = 0
         self.publicKey = 0
-        self.senderKey = None
+        self.userKey = None
 
         self.secretKeys = {}
         self.publicKeys = {}
@@ -51,34 +48,34 @@ class User(object):
                 else:
                     self.secretKeys[i] = [pow(self.publicKeys[i], self.privateKey, self.p)]
     
-    def encryptKey(self, targetUser):
-        if(self.senderKey is None):
-            self.senderKey = get_random_bytes(CIPHER_KEYSIZE)
-        sharedKey = KeyDerivationFunction(self.secretKeys[targetUser])
+    def encryptKey(self, recvUser):
+        if(self.userKey is None):
+            self.userKey = get_random_bytes(KEY_SIZE)
+        sharedKey = KeyDerivationFunction(self.secretKeys[recvUser])
         cipher = AES.new(sharedKey, AES.MODE_EAX)
         nonce = cipher.nonce
-        encryptedKey, tag = cipher.encrypt_and_digest(self.senderKey)
+        encryptedKey, tag = cipher.encrypt_and_digest(self.userKey)
         return(nonce, encryptedKey, tag)
 
     def encryptKeys(self):
-        for targetUser in self.publicKeys:
-            self.encryptedKeys[targetUser] = self.encryptKey(targetUser)
+        for recvUser in self.publicKeys:
+            self.encryptedKeys[recvUser] = self.encryptKey(recvUser)
 
-    def decryptKey(self, originUser, data):
-        sharedKey = KeyDerivationFunction(self.secretKeys[originUser])
+    def decryptKey(self, sendingUser, data):
+        sharedKey = KeyDerivationFunction(self.secretKeys[sendingUser])
         nonce, encryptedKey, tag = data
         cipher = AES.new(sharedKey, AES.MODE_EAX,nonce=nonce)
-        decryptedKey=cipher.decrypt(encryptedKey)
+        decryptedKey= cipher.decrypt(encryptedKey)
 
         try:
             cipher.verify(tag)
         except ValueError:
             print ("verification failed.")
             return False
-        self.decryptedKeys[originUser] = decryptedKey
+        self.decryptedKeys[sendingUser] = decryptedKey
     
     def decryptKeys (self, encryptedKeys):
-        for originUser in encryptedKeys:
-            self.decryptKey(originUser, encryptedKeys[originUser])
+        for sendingUser in encryptedKeys:
+            self.decryptKey(sendingUser, encryptedKeys[sendingUser])
 
 

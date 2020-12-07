@@ -1,7 +1,7 @@
 import sys
 import os
 import time
-from utils import User,CIPHER_KEYSIZE,KeyDerivationFunction
+from utils import User,KEY_SIZE,KeyDerivationFunction
 import pickle
 from Crypto.Cipher import AES
 from socket import AF_INET, socket, SOCK_STREAM
@@ -14,9 +14,9 @@ def send (msg, client, raw = False, encrypt = False):
         msg = msg.encode('utf-8')
 
     if encrypt: 
-        aes = AES.new(user.senderKey, AES.MODE_EAX)
-        encryptedMessage, tag = aes.encrypt_and_digest(msg)
-        nonce = aes.nonce
+        cipher = AES.new(user.userKey, AES.MODE_EAX)
+        nonce = cipher.nonce
+        encryptedMessage, tag = cipher.encrypt_and_digest(msg)
         msg=pickle.dumps((nonce,encryptedMessage,tag))
         
     msg_header = f"{len(msg):<{HEADER_LENGTH}}".encode('utf-8')
@@ -58,7 +58,7 @@ def receiveThread():
             msg =""
 
 #-----------------------------------------------------------------------------------------------------------------------
-        if checkCMD('#signup success', msg):
+        if checkCMD('#join success', msg):
             infodump = receive(client_socket, raw=True)
             info = pickle.loads(infodump)
             user = User(info['id'], info['p'], info['g'])
@@ -67,7 +67,7 @@ def receiveThread():
             send(str(user.publicKey), client_socket)
 
 #-----------------------------------------------------------------------------------------------------------------------
-        elif checkCMD('#quit', msg):
+        elif checkCMD('#exit', msg):
             user.encryptKeys()
 
             with open("./data/"+user.id, 'wb+') as userfile:
@@ -106,68 +106,68 @@ def receiveThread():
 #-----------------------------------------------------------------------------------------------------------------------       
         else:
             if authenticated:
-                originUser = incMsg[:USERNAME_LENGTH].decode('utf-8').strip()
+                sendingUser = incMsg[:USERNAME_LENGTH].decode('utf-8').strip()
 
                 try:
                     receivedNonce,receivedMsg,receivedTag = pickle.loads(incMsg[USERNAME_LENGTH:])
                 except EOFError:
-                    print(">>>> " + originUser + " empty input, try again")
+                    print(">>>> " + sendingUser + " empty input, try again")
 
-                if originUser == user.id:
+                if sendingUser == user.id:
                     try:
-                        decipher = AES.new(user.senderKey, AES.MODE_EAX,nonce=receivedNonce)
+                        decipher = AES.new(user.userKey, AES.MODE_EAX,nonce=receivedNonce)
                         decryptedReceivedMsg = decipher.decrypt(receivedMsg)
                         try:
                             decipher.verify(receivedTag)
                         except ValueError:
-                            time.sleep(0.5)
+                            time.sleep(0.1)
 
-                        if originUser != user.id:
+                        if sendingUser != user.id:
                             try:
-                                print(originUser + ": " + decryptedReceivedMsg.decode('utf-8'))
-                                user.decryptedKeys[originUser] = KeyDerivationFunction(user.decryptedKeys[originUser], RATCHETING_STEPS)
+                                print(sendingUser + ": " + decryptedReceivedMsg.decode('utf-8'))
+                                user.decryptedKeys[sendingUser] = KeyDerivationFunction(user.decryptedKeys[sendingUser])
                             except UnicodeDecodeError:
                                 time.sleep(0.5)
-                                #print(originUser + ": ")
+                                #print(sendingUser + ": ")
                                 #print("**********************empty input, try again********************")
                         else:
                             try: 
-                                print(originUser + ": " + decryptedReceivedMsg.decode('utf-8'))
-                                user.senderKey = KeyDerivationFunction(user.senderKey, RATCHETING_STEPS)
+                                print(sendingUser + ": " + decryptedReceivedMsg.decode('utf-8'))
+                                user.userKey = KeyDerivationFunction(user.userKey)
                             except UnicodeDecodeError:
                                 time.sleep(0.5)
-                                #print(originUser + ": ")
+                                #print(sendingUser + ": ")
                                 #print("**********************empty input, try again********************")
 
                     except UnboundLocalError:
-                        time.sleep(0.5)
+                        time.sleep(0.1)
 
                 else:
                     try:
-                        decipher = AES.new(user.decryptedKeys[originUser], AES.MODE_EAX,nonce=receivedNonce)
+                        decipher = AES.new(user.decryptedKeys[sendingUser], AES.MODE_EAX,nonce=receivedNonce)
                         decryptedReceivedMsg = decipher.decrypt(receivedMsg)
                         try:
                             decipher.verify(receivedTag)
                         except ValueError:
-                            time.sleep(0.5)
-                        if originUser != user.id:
+                            time.sleep(0.1)
+                        if sendingUser != user.id:
                             try:
-                                print(originUser + ": " + decryptedReceivedMsg.decode('utf-8'))
-                                user.decryptedKeys[originUser] = KeyDerivationFunction(user.decryptedKeys[originUser], RATCHETING_STEPS)
+                                print(sendingUser + ": " + decryptedReceivedMsg.decode('utf-8'))
+                                user.decryptedKeys[sendingUser] = KeyDerivationFunction(user.decryptedKeys[sendingUser])
                             except UnicodeDecodeError:
-                                time.sleep(0.5)
-                                #print(originUser + ": ")
+                                time.sleep(0.1)
+                                #print(sendingUser + ": ")
                                 #print("**********************empty input, try again********************")
                         else:
                             try: 
-                                print(originUser + ": " + decryptedReceivedMsg.decode('utf-8'))
-                                user.senderKey = KeyDerivationFunction(user.senderKey, RATCHETING_STEPS)
+                                print(sendingUser + ": " + decryptedReceivedMsg.decode('utf-8'))
+                                user.userKey = KeyDerivationFunction(user.userKey)
                             except UnicodeDecodeError:
-                                time.sleep(0.5)
-                                #print(originUser + ": ")
+                                time.sleep(0.1)
+                                #print(sendingUser + ": ")
                                 #print("**********************empty input, try again********************")
                     except UnboundLocalError:
-                        time.sleep(0.5)
+                        time.sleep(0.1)
 
             else:
                 print(msg)
@@ -176,13 +176,13 @@ def sendThread():
     while True:
         msg = input("> ")
         print ("\033[A                             \033[A")
-        if(authenticated and not checkCMD(msg,"#quit")):
+        if(authenticated and not checkCMD(msg,"#exit")):
             send(msg,client_socket,encrypt=True)
         else:
             send(msg,client_socket)
 
 def on_closing(event=None):
-    send("#quit",client_socket)
+    send("#exit",client_socket)
     client_socket.close()
 
 #HOST = '127.0.0.1'

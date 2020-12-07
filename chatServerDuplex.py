@@ -22,8 +22,8 @@ welcomeMessage= """
 ***************************************
 * Welcome to E2E Encrypted chat.      *
 * Enter one of the following commands *
-*     - #signup                       *
-*     - #quit                         *
+*     - #join                       *
+*     - #exit                         *
 ***************************************
 """
 # Dictionary that will store key-value pairs of (username, socket object)
@@ -108,7 +108,7 @@ def createConnectionWithClient(connectionWithClient):
             command = ""
 
         # If the command received from client is signup
-        if command == "#signup":
+        if command == "#join":
             #action = "signup"
 
             # Prompt the client to enter a username
@@ -123,8 +123,8 @@ def createConnectionWithClient(connectionWithClient):
 
             # Send to the client values needed for encryption and notify them
             # Using pickle.dumps to convert the dictionary to a byte-stream, so that we can send it to client via socket
-            info={'id':username,'p':serverObject.prime, 'g':serverObject.base}
-            sendPacket("#signup success", connectionWithClient) # inform user if their signup is successful
+            info={'id':username,'p':serverObject.p, 'g':serverObject.g}
+            sendPacket("#join success", connectionWithClient) # inform user if their signup is successful
             sendPacket(pickle.dumps(info), connectionWithClient, True)
             totalClients=0
 
@@ -173,10 +173,10 @@ def createConnectionWithClient(connectionWithClient):
             authenticated=True
 # -----------------------------------------------------------------------------------------------------------------------
         # If the client wants exit chat
-        elif command == "#quit":
+        elif command == "#exit":
             user = socketThenUsername[connectionWithClient] # get username of client that wants to exit
             print("Closing connection with client: " + str(user))
-            sendPacket("#quit", connectionWithClient) # send message so client program exits
+            sendPacket("#exit", connectionWithClient) # send message so client program exits
             connectionWithClient.close() # close client socket
             return False # if connection with client closed, close their thread
 
