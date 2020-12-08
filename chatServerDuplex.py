@@ -37,8 +37,9 @@ usernameThenSocket={}
 #   - can reuse usernameThenSocket, but having socket object as a key in separate dictionary makes it easier to access
 socketThenUsername={}
 
+# Store keys needed for encrypted communication between clients
 publicKeys={}
-allEncryptedUserKeys={}
+encryptedKeys={}
 totalClients=0
 
 
@@ -73,6 +74,16 @@ def sendPacket(msg, client, encoded=False):
 
 
 
+"""If a client sends a message, all other connected clients should receive it"""
+def sendToAllClients(msg, prefix="", encoded=False):  # prefix is for name identification.
+    for socket in socketThenUsername:
+        try:
+            sendPacket(prefix + msg, socket, encoded)
+        except:
+            pass
+
+
+
 """Sets up handling for incoming clients."""
 def handleNewConnections():
     # Loop forever accepting connections
@@ -92,7 +103,7 @@ def createConnectionWithClient(connectionWithClient):
     global totalClients # global variable to keep track of number of clients
     sendPacket(welcomeMessage, connectionWithClient) # send the client the welcome message
     connectionEstablished=False # if the user is successfully connected to chat, tell other users a new user has joined
-    connectionAuthenticated=False # the client is currently not authenticated
+    connectionAuthenticated=False # the client has an encrypted channel to communicate on
 
     while True:
         # The client that wants to connect and will enter some command
@@ -133,43 +144,37 @@ def createConnectionWithClient(connectionWithClient):
 
             # Client has successfully connected to chat, update flag
             connectionEstablished=True
-#-----------------------------------------------------------------------------------------------------------------------
-        # TODO: EDIT
-        # If a new user is successfully created
-        elif command == "#new user":
 
+        # If a new client is successfully connected
+        elif command == "#new user":
             # Send the public keys to the client
             sendPacket(pickle.dumps(publicKeys), connectionWithClient, encoded=True)
 
-            #TODO
-            allEncryptedUserKeys[username]=pickle.loads(receivePacket(connectionWithClient, decoded=True))
+            # Receive key bundle from client
+            encryptedKeys[username]=pickle.loads(receivePacket(connectionWithClient, decoded=True))
             totalClients+=1
+
+            # When socket user added to usernameThenSocket, then all the correct keys have been exchanged and calculated
             while totalClients != len(usernameThenSocket):
-                print(totalClients, len(usernameThenSocket))
-                print("Waiting for client...")
-                time.sleep(0.5)
+                time.sleep(1)
 
-            otherUserKeys={}
-            for otherUser in allEncryptedUserKeys:
-                if(otherUser!=username):
-                    try:
-                        otherUserKeys[otherUser]=allEncryptedUserKeys[otherUser][username]
-                    except:
-                        pass
+            # Get all other keys and send to client, so that client can communicate
+            # with all other clients (if more than 2)
+            allUsersKeys={}
+            for otherUsers in encryptedKeys:
+                if otherUsers != username:
+                    try: allUsersKeys[otherUsers] = encryptedKeys[otherUsers][username]
+                    except: pass
+            sendPacket(pickle.dumps(allUsersKeys), connectionWithClient, encoded=True)
+            time.sleep(2)
 
-            sendPacket(pickle.dumps(otherUserKeys), connectionWithClient, encoded=True)
-            time.sleep(1.5)
-
+            # If the client has just joined, inform the other clients just once (at the beginning)
             if not connectionAuthenticated:
-                # Inform clients of the new user
                 sendToAllClients(str(username) + " has joined the chat.", "#broadcast")
 
-                # Once two clients have successfully connected, messaging can begin
-                #if totalClients == 2:
-                #    sendToAllClients("\n\n***All clients connected, you may begin messaging!***", "#broadcast")
-
+            # Encrypted channel established
             connectionAuthenticated=True
-# -----------------------------------------------------------------------------------------------------------------------
+
         # If the client wants exit chat
         elif command == "#exit":
             user = socketThenUsername[connectionWithClient] # get username of client that wants to exit
@@ -182,16 +187,6 @@ def createConnectionWithClient(connectionWithClient):
         # to all other clients in the chat
         elif connectionEstablished:
             sendToAllClients(encodedCommand, f"{username:<{USERNAME_LENGTH}}".encode(ENCODING_TYPE), encoded=True)
-
-
-
-"""If a client sends a message, all other connected clients should receive it"""
-def sendToAllClients(msg, prefix="", encoded=False):  # prefix is for name identification.
-    for socket in socketThenUsername:
-        try:
-            sendPacket(prefix + msg, socket, encoded)
-        except:
-            pass
 
 
 
