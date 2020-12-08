@@ -37,7 +37,7 @@ socketThenUsername={}
 publicKeys={}
 
 # TODO: ADD COMMENT
-allEncryptedSenderKeys={}
+allEncryptedUserKeys={}
 
 # Total number of clients in the chat
 totalClients=0
@@ -144,22 +144,22 @@ def createConnectionWithClient(connectionWithClient):
             sendPacket(pickle.dumps(publicKeys), connectionWithClient, encoded=True)
 
             #TODO
-            allEncryptedSenderKeys[username]=pickle.loads(receivePacket(connectionWithClient, decoded=True))
+            allEncryptedUserKeys[username]=pickle.loads(receivePacket(connectionWithClient, decoded=True))
             totalClients+=1
             while totalClients != len(usernameThenSocket):
                 print(totalClients, len(usernameThenSocket))
                 print("Waiting for client...")
                 time.sleep(0.5)
 
-            otherSenderKeys={}
-            for otherUser in allEncryptedSenderKeys:
+            otherUserKeys={}
+            for otherUser in allEncryptedUserKeys:
                 if(otherUser!=username):
                     try:
-                        otherSenderKeys[otherUser]=allEncryptedSenderKeys[otherUser][username]
+                        otherUserKeys[otherUser]=allEncryptedUserKeys[otherUser][username]
                     except:
                         pass
 
-            sendPacket(pickle.dumps(otherSenderKeys), connectionWithClient, encoded=True)
+            sendPacket(pickle.dumps(otherUserKeys), connectionWithClient, encoded=True)
             time.sleep(1.5)
 
             if not authenticated:
