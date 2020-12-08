@@ -4,7 +4,7 @@
 #requires pycryptodome
 import os   #for exit
 import time     #for stalling
-from utils import User  
+from tools import User  
 import pickle      # used for pickling objects (such as messages) into a bytestream so that we can send via socket
 from Crypto.Cipher import AES       #for encryption
 from socket import AF_INET, socket, SOCK_STREAM     #for socket handling
@@ -26,7 +26,10 @@ def DHkeyExchange(user,pKeys):
     user.computeSharedKeys(pKeys)
     user.encryptKeys()
 
-
+""" To send a message, the function needs the 
+    - message, 
+    - the present client, 
+    - and whether or not hte msg is encoded or encrypted"""
 def send (msg, client, encoded = False, encrypt = False):
     if not encoded:
         msg = msg.encode(ENCODING_TYPE)
@@ -36,10 +39,13 @@ def send (msg, client, encoded = False, encrypt = False):
         nonce = cipher.nonce
         encryptedMessage, tag = cipher.encrypt_and_digest(msg)
         msg=pickle.dumps((nonce,encryptedMessage,tag))
-        
+           
     msg_header = f"{len(msg):<{HEADER_LENGTH}}".encode(ENCODING_TYPE)
     client_socket.send(msg_header + msg)
 
+""" To handle a received message, the function needs the 
+    - the present client, 
+    - and if the msg is encoded"""
 def receive(client, encoded = False):
     try:
         msg_header = client.recv(HEADER_LENGTH)
@@ -69,11 +75,10 @@ def receiveThread():
 #-----------------------------------------------------------------------------------------------------------------------
 # When join is successful
         if msg == "#join success":
-            infodump = receive(client_socket, encoded=True)
-            info = pickle.loads(infodump)
+            recvInfo = receive(client_socket, encoded=True)
+            info = pickle.loads(recvInfo)
             user = User(info['id'], info['p'], info['g'])
             send(str(user.publicKey), client_socket)
-
 #-----------------------------------------------------------------------------------------------------------------------
 # Exiting
         elif msg == "#exit":
@@ -83,10 +88,9 @@ def receiveThread():
             os._exit(1)
 #-----------------------------------------------------------------------------------------------------------------------
 #When new user is announced to all other users
-        elif msg[0:len("#broadcast")] == "#broadcast":   #all broadcast messages are prefixed with #broadcast so remove it
-            remove_prefix = msg[len("#broadcast"):]
+        elif msg[0:len("#notice")] == "#notice":   #all notice messages are prefixed with #notice so remove it
+            remove_prefix = msg[len("#notice"):]
             print(remove_prefix)
-
 #-----------------------------------------------------------------------------------------------------------------------
 # #new user command
         elif msg == "#new user":
@@ -112,7 +116,7 @@ def receiveThread():
                     break
 
                 except:
-                    print("Waiting for server, please wait...")
+                    print("Waiting for server...")
                     time.sleep(0.5)
 #-----------------------------------------------------------------------------------------------------------------------       
 #If not a command AKA a message
@@ -130,28 +134,16 @@ def receiveThread():
 
                 if skip == False:  #non empty input
                     if sendingUser == user.id:  #if client is sender
-                        try:
-                            decipher = AES.new(user.userKey, AES.MODE_EAX,nonce=receivedNonce)
-                            decryptedReceivedMsg = decipher.decrypt(receivedMsg)
-                            try:
-                                decipher.verify(receivedTag)
-                                print(sendingUser + ": " + decryptedReceivedMsg.decode(ENCODING_TYPE))        #shows the msg in command line
-                            except ValueError:
-                                time.sleep(0.1)
-                        except UnboundLocalError:
-                            time.sleep(0.1)
+                        decipher = AES.new(user.userKey, AES.MODE_EAX,nonce=receivedNonce)
+                        decryptedReceivedMsg = decipher.decrypt(receivedMsg)
+                        decipher.verify(receivedTag)
+                        print(sendingUser + ": " + decryptedReceivedMsg.decode(ENCODING_TYPE))        #shows the msg in command line
 
                     else: #if client is not sender
-                        try:        
-                            decipher = AES.new(user.decryptedKeys[sendingUser], AES.MODE_EAX,nonce=receivedNonce)
-                            decryptedReceivedMsg = decipher.decrypt(receivedMsg)
-                            try:
-                                decipher.verify(receivedTag)
-                                print(sendingUser + ": " + decryptedReceivedMsg.decode(ENCODING_TYPE))    #shows the msg in command line
-                            except ValueError:
-                                time.sleep(0.1)
-                        except UnboundLocalError:
-                            time.sleep(0.1)
+                        decipher = AES.new(user.decryptedKeys[sendingUser], AES.MODE_EAX,nonce=receivedNonce)
+                        decryptedReceivedMsg = decipher.decrypt(receivedMsg)
+                        decipher.verify(receivedTag)
+                        print(sendingUser + ": " + decryptedReceivedMsg.decode(ENCODING_TYPE))    #shows the msg in command line
 
             else:
                 print(msg)
