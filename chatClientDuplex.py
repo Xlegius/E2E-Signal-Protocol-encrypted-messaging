@@ -27,10 +27,9 @@ def DHkeyExchange(user,pKeys):
     user.encryptKeys()
 
 """ To send a message, the function needs the 
-    - message, 
-    - the present client, 
+    - message,  
     - and whether or not hte msg is encoded or encrypted"""
-def send (msg, client, encoded = False, encrypt = False):
+def send (msg, encoded = False, encrypt = False):
     if not encoded:
         msg = msg.encode(ENCODING_TYPE)
     #AES
@@ -78,7 +77,7 @@ def receiveThread():
             recvInfo = receive(client_socket, encoded=True)
             info = pickle.loads(recvInfo)
             user = User(info['id'], info['p'], info['g'])
-            send(str(user.publicKey), client_socket)
+            send(str(user.publicKey))
 #-----------------------------------------------------------------------------------------------------------------------
 # Exiting
         elif msg == "#exit":
@@ -94,7 +93,7 @@ def receiveThread():
 #-----------------------------------------------------------------------------------------------------------------------
 # #new user command
         elif msg == "#new user":
-            send ("#new user", client_socket)
+            send ("#new user")
             print ("Adding user...")
 
             while True:
@@ -107,7 +106,7 @@ def receiveThread():
                     #Diffie-Hellman Key Exchange
                     DHkeyExchange(user, publicKeys)
 
-                    send(pickle.dumps(user.encryptedKeys), client_socket, encoded=True)
+                    send(pickle.dumps(user.encryptedKeys), encoded=True)
                     temp = receive(client_socket, encoded = True)
                     otherKeys= pickle.loads(temp)
                     user.decryptKeys(otherKeys)
@@ -154,9 +153,9 @@ def sendThread():
         #move the cursor up twice for formatting purposes on CLI and avoid duplicate messages
         print ("\033[A                                                   \033[A")
         if(connectionAuthenticated and msg != "#exit"):
-            send(msg,client_socket,encrypt=True)
+            send(msg,encrypt=True)
         else:
-            send(msg,client_socket)
+            send(msg)
 
 #main socket code that is run
 client_socket = socket(AF_INET, SOCK_STREAM)
