@@ -1,5 +1,9 @@
+#CMPT471 Project: E2E encrypted messaging system using signal protocol
+# Andy Ng and Rahul Anand
+
+#requires pycryptodome
 from socket import * # used for creating sockets
-from Crypto import * #  PyCryptodome library (we will use SHA256)
+from Crypto import * #  PyCryptodome library
 import pickle # used for pickling objects (such as dictionaries) into a bytestream so that we can send via socket
 from utils import Server # create server object as defined in utils.py
 from threading import Thread # used for creating a thread for accepting connections
@@ -33,13 +37,8 @@ usernameThenSocket={}
 #   - can reuse usernameThenSocket, but having socket object as a key in separate dictionary makes it easier to access
 socketThenUsername={}
 
-# TODO: ADD COMMENT
 publicKeys={}
-
-# TODO: ADD COMMENT
 allEncryptedUserKeys={}
-
-# Total number of clients in the chat
 totalClients=0
 
 
@@ -52,7 +51,7 @@ def receivePacket(client, decoded=False):
     header = client.recv(HEADER_LENGTH)
     packet_length = int(header.decode(ENCODING_TYPE).strip()) # strip removes any whitespace
 
-    # Check if message is encoded or not, message such as !signup, username, etc. not encoded
+    # Check if message is encoded or not, message such as !join, username, etc. not encoded
     if decoded:
         packet = client.recv(packet_length)
     else:
@@ -93,7 +92,7 @@ def createConnectionWithClient(connectionWithClient):
     global totalClients # global variable to keep track of number of clients
     sendPacket(welcomeMessage, connectionWithClient) # send the client the welcome message
     connectionEstablished=False # if the user is successfully connected to chat, tell other users a new user has joined
-    authenticated=False # the client is currently not authenticated
+    connectionAuthenticated=False # the client is currently not authenticated
 
     while True:
         # The client that wants to connect and will enter some command
@@ -107,12 +106,11 @@ def createConnectionWithClient(connectionWithClient):
         except:
             command = ""
 
-        # If the command received from client is signup
+        # If the command received from client is join
         if command == "#join":
-            #action = "signup"
 
             # Prompt the client to enter a username
-            sendPacket("signup \nEnter Username : ", connectionWithClient)
+            sendPacket("Join \nEnter Username : ", connectionWithClient)
 
             # Receive the message (username) entered by the client
             username = receivePacket(connectionWithClient)
@@ -124,7 +122,7 @@ def createConnectionWithClient(connectionWithClient):
             # Send to the client values needed for encryption and notify them
             # Using pickle.dumps to convert the dictionary to a byte-stream, so that we can send it to client via socket
             info={'id':username,'p':serverObject.p, 'g':serverObject.g}
-            sendPacket("#join success", connectionWithClient) # inform user if their signup is successful
+            sendPacket("#join success", connectionWithClient) # inform user if their join is successful
             sendPacket(pickle.dumps(info), connectionWithClient, True)
             totalClients=0
 
@@ -162,7 +160,7 @@ def createConnectionWithClient(connectionWithClient):
             sendPacket(pickle.dumps(otherUserKeys), connectionWithClient, encoded=True)
             time.sleep(1.5)
 
-            if not authenticated:
+            if not connectionAuthenticated:
                 # Inform clients of the new user
                 sendToAllClients(str(username) + " has joined the chat.", "#broadcast")
 
@@ -170,7 +168,7 @@ def createConnectionWithClient(connectionWithClient):
                 #if totalClients == 2:
                 #    sendToAllClients("\n\n***All clients connected, you may begin messaging!***", "#broadcast")
 
-            authenticated=True
+            connectionAuthenticated=True
 # -----------------------------------------------------------------------------------------------------------------------
         # If the client wants exit chat
         elif command == "#exit":
@@ -199,7 +197,7 @@ def sendToAllClients(msg, prefix="", encoded=False):  # prefix is for name ident
 
 """Start the server and listen for, and accept connections"""
 def main():
-    serverConnection.listen(2) # server will only listen for 2 connections
+    serverConnection.listen(5) # server can listen for up to 5 connections
     print("Listening for connections...")
     connectionThread = Thread(target=handleNewConnections)
     connectionThread.start()

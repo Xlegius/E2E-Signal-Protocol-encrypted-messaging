@@ -1,144 +1,157 @@
-import sys
-import os
-import time
-from utils import User
-import pickle
-from Crypto.Cipher import AES
-from socket import AF_INET, socket, SOCK_STREAM
-from threading import Thread
+#CMPT471 Project: E2E encrypted messaging system using signal protocol
+# Andy Ng and Rahul Anand
 
-authenticated = False
+#requires pycryptodome
+import os   #for exit
+import time     #for stalling
+from utils import User  
+import pickle      # used for pickling objects (such as messages) into a bytestream so that we can send via socket
+from Crypto.Cipher import AES       #for encryption
+from socket import AF_INET, socket, SOCK_STREAM     #for socket handling
+from threading import Thread           # used for creating a thread for accepting connections
 
-def send (msg, client, raw = False, encrypt = False):
-    if not raw:
-        msg = msg.encode('utf-8')
+connectionAuthenticated = False
 
+"""constants"""
+HOST = 'localhost'
+PORT = 65535
+BUFSIZ = 4096
+ENCODING_TYPE = 'utf-8'
+ADDR = (HOST, PORT)
+HEADER_LENGTH=10
+USERNAME_LENGTH=50
+
+"""Diffie-Hellman Key Exchange"""
+def DHkeyExchange(user,pKeys):
+    user.computeSharedKeys(pKeys)
+    user.encryptKeys()
+
+
+def send (msg, client, encoded = False, encrypt = False):
+    if not encoded:
+        msg = msg.encode(ENCODING_TYPE)
+    #AES
     if encrypt: 
         cipher = AES.new(user.userKey, AES.MODE_EAX)
         nonce = cipher.nonce
         encryptedMessage, tag = cipher.encrypt_and_digest(msg)
         msg=pickle.dumps((nonce,encryptedMessage,tag))
         
-    msg_header = f"{len(msg):<{HEADER_LENGTH}}".encode('utf-8')
+    msg_header = f"{len(msg):<{HEADER_LENGTH}}".encode(ENCODING_TYPE)
     client_socket.send(msg_header + msg)
 
-def receive(client, raw = False):
+def receive(client, encoded = False):
     try:
         msg_header = client.recv(HEADER_LENGTH)
         if not msg_header:
             print("Header missing")
 
-        msg_len= int(msg_header.decode('utf-8').strip())
+        msg_len= int(msg_header.decode(ENCODING_TYPE).strip())
 
-        if raw:
+        if encoded:
             return client.recv(msg_len)
         else:
-            return client.recv(msg_len).decode('utf-8')
+            return client.recv(msg_len).decode(ENCODING_TYPE)
     except:
         print ("Header wrong format ", msg_header)
 
-def checkCMD(cmd,msg):
-    checkMsg = msg[0:len(cmd.lower())]
-    if (checkMsg == cmd.lower()):
-        return True
-    return False
-
-def keyExchange(user,pKeys):
-    user.computeSharedKeys(pKeys)
-    user.encryptKeys()
 
 def receiveThread():
-    global authenticated,user
+    global connectionAuthenticated,user
     while True:
-        incMsg = receive(client_socket,raw=True)
+        incMsg = receive(client_socket,encoded=True)
 
         try:
-            msg = incMsg.decode('utf-8')
+            msg = incMsg.decode(ENCODING_TYPE)
         except:
             msg =""
 
 #-----------------------------------------------------------------------------------------------------------------------
-        if checkCMD('#join success', msg):
-            infodump = receive(client_socket, raw=True)
+# When join is successful
+        if msg == "#join success":
+            infodump = receive(client_socket, encoded=True)
             info = pickle.loads(infodump)
             user = User(info['id'], info['p'], info['g'])
-            with open("./data/" + user.id, 'wb+') as userfile:
-                pickle.dump(user, userfile)
             send(str(user.publicKey), client_socket)
 
 #-----------------------------------------------------------------------------------------------------------------------
-        elif checkCMD('#exit', msg):
+# Exiting
+        elif msg == "#exit":
             user.encryptKeys()
-
-            with open("./data/"+user.id, 'wb+') as userfile:
-                pickle.dump(user,userfile)
-            print("Terminating connection")
+            print("Exiting...")
             client_socket.close()
             os._exit(1)
 #-----------------------------------------------------------------------------------------------------------------------
-        elif checkCMD('#broadcast',msg):
-            print(msg[len("#broadcast"):])
+#When new user is announced to all other users
+        elif msg[0:len("#broadcast")] == "#broadcast":   #all broadcast messages are prefixed with #broadcast so remove it
+            remove_prefix = msg[len("#broadcast"):]
+            print(remove_prefix)
 
 #-----------------------------------------------------------------------------------------------------------------------
-        elif checkCMD("#new user", msg):
+# #new user command
+        elif msg == "#new user":
             send ("#new user", client_socket)
             print ("Adding user...")
 
             while True:
                 try:
-                    publicKeys=pickle.loads(receive(client_socket,raw=True))
+                    publicKeys=pickle.loads(receive(client_socket,encoded=True))
+                    #add user to publicKeys
                     if user.id not in publicKeys:
                         publicKeys[user.id] = user.publicKey
-                    keyExchange(user, publicKeys)
+                    
+                    #Diffie-Hellman Key Exchange
+                    DHkeyExchange(user, publicKeys)
 
-                    send(pickle.dumps(user.encryptedKeys), client_socket, raw=True)
-                    tmp = receive(client_socket, raw = True)
-                    otherKeys= pickle.loads(tmp)
+                    send(pickle.dumps(user.encryptedKeys), client_socket, encoded=True)
+                    temp = receive(client_socket, encoded = True)
+                    otherKeys= pickle.loads(temp)
                     user.decryptKeys(otherKeys)
-                    with open("./data/" + user.id, 'wb+') as userfile:
-                        pickle.dump(user, userfile)
 
-                    authenticated = True
+                    connectionAuthenticated = True
                     break
+
                 except:
                     print("Waiting for server, please wait...")
                     time.sleep(0.5)
 #-----------------------------------------------------------------------------------------------------------------------       
+#If not a command AKA a message
         else:
-            if authenticated:
-                sendingUser = incMsg[:USERNAME_LENGTH].decode('utf-8').strip()
+            if connectionAuthenticated:
+                sendingUser = incMsg[:USERNAME_LENGTH].decode(ENCODING_TYPE).strip()
                 skip = False
-                try:
+
+                try:    #handling received message
                     receivedNonce,receivedMsg,receivedTag = pickle.loads(incMsg[USERNAME_LENGTH:])
                     
                 except EOFError:
-                    print(">>>> " + sendingUser + " empty input, try again")
-                    skip = True
+                    print(">> " + sendingUser + " empty input, try again")
+                    skip = True   #skip if it's an empty input
 
-                if skip == False:
-                    if sendingUser == user.id:
+                if skip == False:  #non empty input
+                    if sendingUser == user.id:  #if client is sender
                         try:
                             decipher = AES.new(user.userKey, AES.MODE_EAX,nonce=receivedNonce)
                             decryptedReceivedMsg = decipher.decrypt(receivedMsg)
                             try:
                                 decipher.verify(receivedTag)
-                                print(sendingUser + ": " + decryptedReceivedMsg.decode('utf-8'))
+                                print(sendingUser + ": " + decryptedReceivedMsg.decode(ENCODING_TYPE))        #shows the msg in command line
                             except ValueError:
-                                time.sleep(0.5)
+                                time.sleep(0.1)
                         except UnboundLocalError:
-                            time.sleep(0.5)
+                            time.sleep(0.1)
 
-                    else:
-                        try:
+                    else: #if client is not sender
+                        try:        
                             decipher = AES.new(user.decryptedKeys[sendingUser], AES.MODE_EAX,nonce=receivedNonce)
                             decryptedReceivedMsg = decipher.decrypt(receivedMsg)
                             try:
                                 decipher.verify(receivedTag)
-                                print(sendingUser + ": " + decryptedReceivedMsg.decode('utf-8'))
+                                print(sendingUser + ": " + decryptedReceivedMsg.decode(ENCODING_TYPE))    #shows the msg in command line
                             except ValueError:
-                                time.sleep(0.5)
+                                time.sleep(0.1)
                         except UnboundLocalError:
-                            time.sleep(0.5)
+                            time.sleep(0.1)
 
             else:
                 print(msg)
@@ -146,34 +159,19 @@ def receiveThread():
 def sendThread():
     while True:
         msg = input("> ")
-        print ("\033[A                             \033[A")
-        if(authenticated and not checkCMD(msg,"#exit")):
+        #move the cursor up twice for formatting purposes on CLI and avoid duplicate messages
+        print ("\033[A                                                   \033[A")
+        if(connectionAuthenticated and msg != "#exit"):
             send(msg,client_socket,encrypt=True)
         else:
             send(msg,client_socket)
 
-def on_closing(event=None):
-    send("#exit",client_socket)
-    client_socket.close()
-
-#HOST = '127.0.0.1'
-HOST = 'localhost'
-PORT = 65535
-if not os.path.exists('data'):
-    os.makedirs('data')
-
-BUFSIZ = 4096
-ADDR = (HOST, PORT)
-HEADER_LENGTH=10
-
-USERNAME_LENGTH=50
-RATCHETING_STEPS=5
-
+#main socket code that is run
 client_socket = socket(AF_INET, SOCK_STREAM)
 client_socket.connect(ADDR)
 
 receive_thread = Thread(target=receiveThread)
 receive_thread.start()
 
-swnd_thread = Thread(target=sendThread)
-swnd_thread.start()
+send_thread = Thread(target=sendThread)
+send_thread.start()
