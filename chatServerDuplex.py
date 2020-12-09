@@ -130,7 +130,7 @@ def connectionThread(connectionWithClient):
             # If the client has just joined, inform the other clients just once (at the beginning)
             if not connectionAuthenticated:
                 for socket in sockets_dict:
-                    message = "#notice" + str(username) + " has joined the chat."
+                    message = "#notice" + "--- " + str(username) + " has joined the chat. ---\n"
                     sendPacket(message, socket)
 
             # Encrypted channel established
@@ -141,6 +141,11 @@ def connectionThread(connectionWithClient):
             user = sockets_dict[connectionWithClient] # get username of client that wants to exit
             print("Closing connection with client: " + str(user))
             sendPacket("#exit", connectionWithClient) # send message so client program exits
+
+            for socket in sockets_dict:
+                    message = "#notice" + "--- " + str(user) + " has exited the chat. ---"
+                    sendPacket(message, socket)
+
             del sockets_dict[connectionWithClient]
             del usernames_dict[user]
             connectionWithClient.close() # close client socket

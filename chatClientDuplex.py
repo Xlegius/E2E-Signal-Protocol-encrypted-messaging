@@ -13,13 +13,12 @@ from threading import Thread           # used for creating a thread for acceptin
 connectionAuthenticated = False
 
 """constants"""
-HOST = 'localhost'
-PORT = 65535
-BUFSIZ = 4096
+HOST = 'localhost'          #must match chatServerDuplex
+PORT = 65535                #must match chatServerDuplex
 ENCODING_TYPE = 'utf-8'
-ADDR = (HOST, PORT)
-HEADER_LENGTH=10
-USERNAME_LENGTH=50
+ADDRESS = (HOST, PORT)
+HEADER_LEN=10
+USERNAME_LEN=50
 
 """Diffie-Hellman Key Exchange"""
 def DHkeyExchange(user,pKeys):
@@ -29,7 +28,7 @@ def DHkeyExchange(user,pKeys):
 """ To send a message, the function needs the 
     - message,  
     - and whether or not hte msg is encoded or encrypted"""
-def send (msg, encoded = False, encrypt = False):
+def sendMsg(msg, encoded = False, encrypt = False):
     if not encoded:
         msg = msg.encode(ENCODING_TYPE)
     #AES
@@ -39,15 +38,15 @@ def send (msg, encoded = False, encrypt = False):
         encryptedMessage, tag = cipher.encrypt_and_digest(msg)
         msg=pickle.dumps((nonce,encryptedMessage,tag))
            
-    msg_header = f"{len(msg):<{HEADER_LENGTH}}".encode(ENCODING_TYPE)
+    msg_header = f"{len(msg):<{HEADER_LEN}}".encode(ENCODING_TYPE)
     client_socket.send(msg_header + msg)
 
 """ To handle a received message, the function needs the 
     - the present client, 
     - and if the msg is encoded"""
-def receive(client, encoded = False):
+def receiveMsg(client, encoded = False):
     try:
-        msg_header = client.recv(HEADER_LENGTH)
+        msg_header = client.recv(HEADER_LEN)
         if not msg_header:
             print("Header missing")
 
@@ -61,10 +60,10 @@ def receive(client, encoded = False):
         print ("Header wrong format ", msg_header)
 
 
-def receiveThread():
+def receive_thread():
     global connectionAuthenticated,user
     while True:
-        incMsg = receive(client_socket,encoded=True)
+        incMsg = receiveMsg(client_socket,encoded=True)
 
         try:
             msg = incMsg.decode(ENCODING_TYPE)
@@ -74,10 +73,10 @@ def receiveThread():
 #-----------------------------------------------------------------------------------------------------------------------
 # When join is successful
         if msg == "#join success":
-            recvInfo = receive(client_socket, encoded=True)
+            recvInfo = receiveMsg(client_socket, encoded=True)
             info = pickle.loads(recvInfo)
             user = User(info['id'], info['p'], info['g'])
-            send(str(user.publicKey))
+            sendMsg(str(user.publicKey))
 #-----------------------------------------------------------------------------------------------------------------------
 # Exiting
         elif msg == "#exit":
@@ -93,12 +92,12 @@ def receiveThread():
 #-----------------------------------------------------------------------------------------------------------------------
 # #new user command
         elif msg == "#new user":
-            send ("#new user")
-            print ("Adding user...")
+            sendMsg("#new user")
+            print ("\nAdding user... ")
 
             while True:
                 try:
-                    publicKeys=pickle.loads(receive(client_socket,encoded=True))
+                    publicKeys=pickle.loads(receiveMsg(client_socket,encoded=True))
                     #add user to publicKeys
                     if user.id not in publicKeys:
                         publicKeys[user.id] = user.publicKey
@@ -106,8 +105,8 @@ def receiveThread():
                     #Diffie-Hellman Key Exchange
                     DHkeyExchange(user, publicKeys)
 
-                    send(pickle.dumps(user.encryptedKeys), encoded=True)
-                    temp = receive(client_socket, encoded = True)
+                    sendMsg(pickle.dumps(user.encryptedKeys), encoded=True)
+                    temp = receiveMsg(client_socket, encoded = True)
                     otherKeys= pickle.loads(temp)
                     user.decryptKeys(otherKeys)
 
@@ -121,11 +120,11 @@ def receiveThread():
 #If not a command AKA a message
         else:
             if connectionAuthenticated:
-                sendingUser = incMsg[:USERNAME_LENGTH].decode(ENCODING_TYPE).strip()
+                sendingUser = incMsg[:USERNAME_LEN].decode(ENCODING_TYPE).strip()
                 skip = False
 
                 try:    #handling received message
-                    receivedNonce,receivedMsg,receivedTag = pickle.loads(incMsg[USERNAME_LENGTH:])
+                    receivedNonce,receivedMsg,receivedTag = pickle.loads(incMsg[USERNAME_LEN:])
                     
                 except EOFError:
                     print(">> " + sendingUser + " empty input, try again")
@@ -147,22 +146,22 @@ def receiveThread():
             else:
                 print(msg)
 
-def sendThread():
+def send_thread():
     while True:
         msg = input("> ")
         #move the cursor up twice for formatting purposes on CLI and avoid duplicate messages
         print ("\033[A                                                   \033[A")
         if(connectionAuthenticated and msg != "#exit"):
-            send(msg,encrypt=True)
+            sendMsg(msg,encrypt=True)
         else:
-            send(msg)
+            sendMsg(msg)
 
 #main socket code that is run
 client_socket = socket(AF_INET, SOCK_STREAM)
-client_socket.connect(ADDR)
+client_socket.connect(ADDRESS)
 
-receive_thread = Thread(target=receiveThread)
-receive_thread.start()
+r_thread = Thread(target=receive_thread)
+r_thread.start()
 
-send_thread = Thread(target=sendThread)
-send_thread.start()
+s_thread = Thread(target=send_thread)
+s_thread.start()
