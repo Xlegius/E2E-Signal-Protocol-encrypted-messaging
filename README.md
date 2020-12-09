@@ -19,4 +19,4 @@ https://pycryptodome.readthedocs.io/en/latest/src/protocol/kdf.html
 
 https://pycryptodome.readthedocs.io/en/latest/src/cipher/aes.html
 
-https://medium.com/@justinomora demystifying-the-signal-protocol-for-end-to-end-encryption-e2ee-ad6a567e6cb4
+https://medium.com/@justinomora/demystifying-the-signal-protocol-for-end-to-end-encryption-e2ee-ad6a567e6cb4
