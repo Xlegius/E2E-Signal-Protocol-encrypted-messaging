@@ -11,7 +11,7 @@ from Crypto.Random.random import randint
 """constants"""
 KEY_SIZE = 16 #Using AES-128
 
-#Using PBKDF2 to do Key Derivation on a shared key
+#Using PBKDF2 to do Key Derivation on a shared key from https://pycryptodome.readthedocs.io/en/latest/src/protocol/kdf.html
 def KeyDerivation(sharedKey,count=100000):
     salt = b""
     KD_Key= PBKDF2(str(sharedKey),salt,dkLen=KEY_SIZE,count=count)

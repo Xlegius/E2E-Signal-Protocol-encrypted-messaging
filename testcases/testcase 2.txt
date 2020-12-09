@@ -1,0 +1,22 @@
+Test 2: Duplicate username test
+Steps are lablled numerically
+
+Terminal 1 (server):
+1) python3 chatServerDuplex.py
+
+Terminal 2 (Client 1):
+2) python3 chatClientDuplex.py
+3) #join
+4) abc 
+
+Terminal 3(Client 2):
+5) python3 chatClientDuplex.py
+6) #join
+7) abc  <- leads to scenario where Client 1 and 2 have the same username and it is rejected.
+
+Inputs: listed above
+
+Expected output:
+- Client 1 connects to server correctly
+- Server rejects Client 2 because it already has abc in the username dictionary
+- Client 2 is rejected because it shares the same username as Client 1

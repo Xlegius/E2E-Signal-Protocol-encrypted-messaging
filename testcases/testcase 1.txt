@@ -1,0 +1,32 @@
+Conversation test between 2 clients
+Steps are lablled numerically
+
+Terminal 1 (server):
+1) python3 chatServerDuplex.py
+
+Terminal 2 (Client 1):
+2) python3 chatClientDuplex.py
+3) #join
+4) abc 
+8) Hello
+10) Can the server see this?
+12) Great! Goodbye!
+13) #exit
+
+Terminal 3(Client 2):
+5) python3 chatClientDuplex.py
+6) #join
+7) def
+9) hi
+11) Nope, this is encrypted!
+14) #exit
+
+Inputs: listed above
+
+Expected output:
+- All clients connect to server correctly
+- Messages appear exactly the same as the inputted strings in every client terminal,
+ with username indicating sender
+- Messages are received by the server but the server is unable to parse the message, 
+only seeing a string of bytes 
+- All clients exit server correctly

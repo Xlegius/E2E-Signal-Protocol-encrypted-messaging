@@ -1,0 +1,38 @@
+Conversation test between more than 2 clients
+
+Terminal 1 (server):
+1) python3 chatServerDuplex.py
+
+Terminal 2 (Client 1):
+2) python3 chatClientDuplex.py
+3) #join
+4) abc 
+8) Hello
+14) yes
+18) #exit
+
+Terminal 3(Client 2):
+5) python3 chatClientDuplex.py
+6) #join
+7) def
+9) hi
+15) me too
+19) #exit
+
+Terminal 4(Client 3):
+10) python3 chatClientDuplex.py
+11) #join
+12) ghj
+13) Hello everyone, can you see this?
+16) goodbye!
+17) #exit
+
+Inputs: listed above
+
+Expected output:
+- All clients connect to server correctly
+- Messages appear exactly the same as the inputted strings in every client terminal,
+ with username indicating sender
+- Messages are received by the server but the server is unable to parse the message, 
+only seeing a string of bytes 
+- All clients exit server correctly
